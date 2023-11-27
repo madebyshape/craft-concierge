@@ -14,7 +14,7 @@ use craft\services\Users;
 use craft\web\Request;
 use olivierbon\concierge\models\Settings;
 use yii\base\Event;
-
+use craft\helpers\FileHelper;
 /**
  * Concierge Class 
  *
@@ -46,6 +46,12 @@ class Concierge extends \craft\base\Plugin
      */
     public $hasCpSection = true;
 
+    public static function log($message)
+    {
+        $file = Craft::getAlias('@storage/logs/concierge.log');
+        $log = date('Y-m-d H:i:s'). ' ' . $message . "\n";
+        FileHelper::writeToFile($file, $log, ['append' => true]);
+    }
 
     public function init()
     {
@@ -154,11 +160,27 @@ class Concierge extends \craft\base\Plugin
             Elements::EVENT_AFTER_SAVE_ELEMENT,
             function(Event $event) {
                 if ($event->element instanceof \craft\elements\User) {
-                    $user = $event->element;
-                    $isNew = $event->isNew;
 
-                    // If it's a new user, suspend the user and issue enabled messages 
-                    if($isNew) {
+                    $user = $event->element;
+                    $userTest = $event->sender;
+                    $isNew = $event->isNew;
+                    $suspendUser = true;
+
+                    $memberGroup = Craft::$app->getRequest()->post('memberGroup');
+
+                    if ($memberGroup) {
+                        Craft::$app->getUsers()->assignUserToGroups($user->id, [$memberGroup]);
+                    }
+                    else {
+                        Craft::$app->getUsers()->assignUserToGroups($user->id, [3]);
+                    }
+
+                    // Disable suspension if a Pet owner
+                    if ($memberGroup && $memberGroup == 3) {
+                        $suspendUser = false;
+                    }
+
+                    if($isNew && $suspendUser) {
                         Craft::$app->users->suspendUser($user);
                         if ($this->settings->concierge_moderation_enabled) {
                             Concierge::getInstance()->mailer->sendAwaitingModerationEmail($user);
@@ -167,6 +189,9 @@ class Concierge extends \craft\base\Plugin
                         if($this->settings->concierge_mod_notification_enabled) {
                             Concierge::getInstance()->mailer->sendNewUserRegistrationEmail();
                         }
+                    }
+                    else {
+                        Craft::$app->getUsers()->sendActivationEmail($user);
                     }
                 }
             }
