@@ -162,36 +162,40 @@ class Concierge extends \craft\base\Plugin
                 if ($event->element instanceof \craft\elements\User) {
 
                     $user = $event->element;
-                    $userTest = $event->sender;
                     $isNew = $event->isNew;
-                    $suspendUser = true;
 
-                    $memberGroup = Craft::$app->getRequest()->post('memberGroup');
+                    if ($isNew) {
+                        
+                        $suspendUser = true;
 
-                    if ($memberGroup) {
-                        Craft::$app->getUsers()->assignUserToGroups($user->id, [$memberGroup]);
-                    }
-                    else {
-                        Craft::$app->getUsers()->assignUserToGroups($user->id, [3]);
-                    }
+                        $memberGroup = Craft::$app->getRequest()->post('memberGroup');
 
-                    // Disable suspension if a Pet owner
-                    if ($memberGroup && $memberGroup == 3) {
-                        $suspendUser = false;
-                    }
-
-                    if($isNew && $suspendUser) {
-                        Craft::$app->users->suspendUser($user);
-                        if ($this->settings->concierge_moderation_enabled) {
-                            Concierge::getInstance()->mailer->sendAwaitingModerationEmail($user);
+                        if ($memberGroup) {
+                            Craft::$app->getUsers()->assignUserToGroups($user->id, [$memberGroup]);
+                        }
+                        else {
+                            Craft::$app->getUsers()->assignUserToGroups($user->id, [3]);
                         }
 
-                        if($this->settings->concierge_mod_notification_enabled) {
-                            Concierge::getInstance()->mailer->sendNewUserRegistrationEmail();
+                        // Disable suspension if a Pet owner
+                        if ($memberGroup && $memberGroup == 3) {
+                            $suspendUser = false;
                         }
-                    }
-                    else {
-                        Craft::$app->getUsers()->sendActivationEmail($user);
+
+                        if($suspendUser) {
+                            Craft::$app->users->suspendUser($user);
+                            if ($this->settings->concierge_moderation_enabled) {
+                                Concierge::getInstance()->mailer->sendAwaitingModerationEmail($user);
+                            }
+
+                            if($this->settings->concierge_mod_notification_enabled) {
+                                Concierge::getInstance()->mailer->sendNewUserRegistrationEmail();
+                            }
+                        }
+                        else {
+                            Craft::$app->getUsers()->sendActivationEmail($user);
+                        }
+
                     }
                 }
             }
